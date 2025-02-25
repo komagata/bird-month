@@ -1,0 +1,60 @@
+body {
+    margin: 0;
+    padding: 20px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    background: linear-gradient(to bottom, #87CEEB, #B0E2FF);
+    font-family: 'Arial', sans-serif;
+}
+
+.game-container {
+    background: linear-gradient(45deg, #8B4513, #A0522D);
+    padding: 20px;
+    border-radius: 15px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+    position: relative;
+    border: 8px solid #6B4423;
+    border-top: none;
+}
+
+.game-container::before,
+.game-container::after {
+    content: '';
+    position: absolute;
+    height: 25px;
+    background: linear-gradient(90deg, #8B4513 0%, #A0522D 50%, #8B4513 100%);
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+.game-container::before {
+    top: -15px;
+    left: -20px;
+    right: 30px;
+    transform: rotate(-2deg);
+}
+
+.game-container::after {
+    top: -10px;
+    left: 30px;
+    right: -20px;
+    transform: rotate(2deg);
+}
+
+.status-bar {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 10px;
+    padding: 10px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    border: 2px solid #6B4423;
+}
+
+#gameCanvas {
+    border: none;
+    background-color: transparent;
+    border-radius: 8px;
+}
