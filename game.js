@@ -10,6 +10,16 @@ class Game {
         this.life = 3;
         this.hasFood = false;
 
+        // Web Audio APIの初期化
+        this.initAudio();
+        
+        // 音声ファイルの読み込み
+        this.loadAudioFiles();
+        
+        // 音声の再生状態
+        this.bgmPlaying = false;
+        this.soundEnabled = false;
+
         // プレイヤー（親鳥）の初期設定
         this.player = {
             x: this.canvas.width / 2,
@@ -74,6 +84,10 @@ class Game {
 
         this.setupEventListeners();
 
+        // 音声の初期化を試みる（ユーザーインタラクション前でも）
+        this.initSound();
+        this.initBGM();
+        
         // ゲームループの開始
         this.gameLoop();
 
@@ -82,17 +96,227 @@ class Game {
     }
 
     setupEventListeners() {
+        // キーダウンイベント
         window.addEventListener('keydown', (e) => {
             if (this.keys.hasOwnProperty(e.code)) {
                 this.keys[e.code] = true;
+                
+                // ユーザーインタラクション後にBGMを再生
+                this.playBGM();
+                
+                // 効果音の初期化も試みる
+                if (!this.soundEnabled) {
+                    this.initSound();
+                }
             }
         });
 
+        // キーアップイベント
         window.addEventListener('keyup', (e) => {
             if (this.keys.hasOwnProperty(e.code)) {
                 this.keys[e.code] = false;
             }
         });
+        
+        // クリックイベント
+        this.canvas.addEventListener('click', () => {
+            // BGMを再生
+            this.playBGM();
+            
+            // 効果音の初期化も試みる
+            if (!this.soundEnabled) {
+                this.initSound();
+            }
+        });
+        
+        // BGM再生ボタンのイベントリスナー
+        const bgmButton = document.getElementById('bgmButton');
+        if (bgmButton) {
+            bgmButton.addEventListener('click', () => {
+                // BGMを再生
+                this.playBGM();
+                
+                // 効果音の初期化も試みる
+                if (!this.soundEnabled) {
+                    this.initSound();
+                }
+            });
+        }
+    }
+    
+    // Web Audio APIの初期化
+    initAudio() {
+        try {
+            // AudioContextの作成
+            window.AudioContext = window.AudioContext || window.webkitAudioContext;
+            this.audioContext = new AudioContext();
+            
+            // 音声バッファの初期化
+            this.buffers = {};
+            
+            // BGM用のノード
+            this.bgmSource = null;
+            this.bgmGainNode = null;
+            
+            console.log('Web Audio APIが初期化されました');
+        } catch (error) {
+            console.error('Web Audio APIの初期化に失敗しました:', error);
+        }
+    }
+    
+    // 音声ファイルの読み込み
+    loadAudioFiles() {
+        // 読み込む音声ファイルのリスト
+        const audioFiles = {
+            bgm: 'musics/bgm_001.ogg',
+            getFoodSound: 'se/get.ogg'
+        };
+        
+        // 各ファイルを読み込む
+        Object.keys(audioFiles).forEach(key => {
+            const url = audioFiles[key];
+            
+            // Fetch APIを使ってファイルを取得
+            fetch(url)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`音声ファイルの取得に失敗しました: ${url}`);
+                    }
+                    return response.arrayBuffer();
+                })
+                .then(arrayBuffer => {
+                    // ArrayBufferをデコード
+                    return this.audioContext.decodeAudioData(arrayBuffer);
+                })
+                .then(audioBuffer => {
+                    // バッファに保存
+                    this.buffers[key] = audioBuffer;
+                    console.log(`音声ファイルが読み込まれました: ${key}`);
+                    
+                    // BGMが読み込まれたら、ユーザーインタラクション後に再生できるようにする
+                    if (key === 'bgm') {
+                        const bgmButton = document.getElementById('bgmButton');
+                        if (bgmButton) {
+                            bgmButton.disabled = false;
+                        }
+                    }
+                })
+                .catch(error => {
+                    console.error(`音声ファイルの読み込みに失敗しました: ${key}`, error);
+                });
+        });
+    }
+    
+    // BGM再生用のヘルパーメソッド
+    playBGM() {
+        if (!this.bgmPlaying && this.buffers.bgm) {
+            console.log('BGM再生を試みます');
+            
+            try {
+                // AudioContextが停止していたら再開
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                // 既存のBGMを停止
+                if (this.bgmSource) {
+                    this.bgmSource.stop();
+                }
+                
+                // BGM用のノードを作成
+                this.bgmSource = this.audioContext.createBufferSource();
+                this.bgmSource.buffer = this.buffers.bgm;
+                this.bgmSource.loop = true;
+                
+                // ゲインノードを作成（音量調整用）
+                this.bgmGainNode = this.audioContext.createGain();
+                this.bgmGainNode.gain.value = 0.5; // 音量を設定
+                
+                // ノードを接続
+                this.bgmSource.connect(this.bgmGainNode);
+                this.bgmGainNode.connect(this.audioContext.destination);
+                
+                // BGMを再生
+                this.bgmSource.start(0);
+                this.bgmPlaying = true;
+                
+                // BGMが再生されたらボタンのテキストを変更
+                const bgmButton = document.getElementById('bgmButton');
+                if (bgmButton) {
+                    bgmButton.textContent = 'BGM再生中';
+                }
+                
+                // 効果音の再生を許可
+                this.soundEnabled = true;
+                
+                console.log('BGMの再生が成功しました');
+            } catch (error) {
+                console.error('BGM再生中に例外が発生しました:', error);
+            }
+        }
+    }
+    
+    // 効果音再生用のヘルパーメソッド
+    playSound(soundName) {
+        if (this.soundEnabled && this.buffers[soundName]) {
+            try {
+                // AudioContextが停止していたら再開
+                if (this.audioContext.state === 'suspended') {
+                    this.audioContext.resume();
+                }
+                
+                // 効果音用のノードを作成
+                const source = this.audioContext.createBufferSource();
+                source.buffer = this.buffers[soundName];
+                
+                // ゲインノードを作成（音量調整用）
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = 0.7; // 音量を設定
+                
+                // ノードを接続
+                source.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                
+                // 効果音を再生
+                source.start(0);
+                
+                console.log(`効果音の再生が成功しました: ${soundName}`);
+            } catch (error) {
+                console.error(`効果音再生中に例外が発生しました: ${soundName}`, error);
+            }
+        } else {
+            console.log(`効果音の再生ができません: ${soundName}`);
+        }
+    }
+    
+    // AudioContextの初期化（ユーザーインタラクション後）
+    initSound() {
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().then(() => {
+                console.log('AudioContextが再開されました');
+                this.soundEnabled = true;
+            }).catch(error => {
+                console.error('AudioContextの再開に失敗しました:', error);
+            });
+        } else {
+            this.soundEnabled = true;
+        }
+    }
+    
+    // BGMの初期化（ユーザーインタラクション後）
+    initBGM() {
+        // AudioContextの状態を確認
+        if (this.audioContext.state === 'suspended') {
+            this.audioContext.resume().then(() => {
+                console.log('AudioContextが再開されました');
+                // BGMの再生を試みる
+                if (!this.bgmPlaying && this.buffers.bgm) {
+                    this.playBGM();
+                }
+            }).catch(error => {
+                console.error('AudioContextの再開に失敗しました:', error);
+            });
+        }
     }
 
     startTimer() {
@@ -196,6 +420,13 @@ class Game {
             if (!this.hasFood && this.checkCollision(this.player, food)) {
                 this.foods.splice(i, 1);
                 this.hasFood = true;
+                
+                // 餌を捕まえた時に効果音を再生
+                if (this.soundEnabled && this.buffers.getFoodSound) {
+                    // 効果音を再生
+                    this.playSound('getFoodSound');
+                    console.log('餌を捕まえた時に効果音を再生しました');
+                }
             }
         }
     }
@@ -333,6 +564,17 @@ class Game {
     }
 
     gameOver() {
+        // BGMを停止
+        if (this.bgmSource) {
+            try {
+                this.bgmSource.stop();
+                this.bgmPlaying = false;
+                console.log('BGMを停止しました');
+            } catch (error) {
+                console.error('BGM停止中にエラーが発生しました:', error);
+            }
+        }
+        
         alert(`ゲームオーバー！\nスコア: ${this.score}`);
         location.reload();
     }
